@@ -1,11 +1,11 @@
 from setuptools import setup, find_packages
 
 setup(
-    name="weaponTargetAssignment",
+    name="WeaponTargetAssignment",
     version="0.0.1",
-    description="weaponTargetAssignment",
+    description="WeaponTargetAssignment",
     author="Jeffrey Chan",
-    url="https://github.com/jeffreychan177/weaponTargetAssignment",
+    url="https://github.com/jeffreychan177/WeaponTargetAssignment",
     packages=find_packages(exclude=["contrib", "docs", "tests"]),
     classifiers=[
         "Intended Audience :: Developers",
