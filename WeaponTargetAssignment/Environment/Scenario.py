@@ -1,17 +1,11 @@
 import numpy as np
-import gym
-from gym import spaces
-import pygame
 import random
+import logging
 
-WHITE = (255, 255, 255)
-BLACK = (0, 0, 0)
-RED = (255, 0, 0)
-GREEN = (0, 255, 0)
-BLUE = (0, 0, 255)
-GRAY = (128, 128, 128)
-AGENT_COLORS = [BLUE, (255, 165, 0), (75, 0, 130)]
+# Set up logging configuration
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 
+AGENT_COLORS = [(0, 0, 255), (255, 165, 0), (75, 0, 130)]
 
 class Shooter:
     def __init__(self, name, position, color, visibility_radius=200):
@@ -26,8 +20,6 @@ class Shooter:
         self.hits = 0
         self.misses = 0
         self.shots_fired = 0
-        self.last_shot_line = None  # Store the last shot line info (start, end, color)
-        self.flash_timer = 0  # Timer to control flash duration of lines
         self.reward = 0.0  # Track reward for the shooter
 
     def reset_state(self):
@@ -37,9 +29,8 @@ class Shooter:
         self.hits = 0
         self.misses = 0
         self.shots_fired = 0
-        self.last_shot_line = None
-        self.flash_timer = 0
         self.reward = 0.0
+        logging.info("Shooter %s state reset", self.name)
 
     def aim_and_shoot(self, target, shoot):
         action = (self._get_target_index(target), shoot)
@@ -57,15 +48,13 @@ class Shooter:
             if shot_hit:
                 self.hits += 1
                 self.reward += 10.0  # Reward for a successful hit
-                line_color = GREEN
+                logging.info("Shooter %s hit target %s", self.name, target.name)
                 target.handle_hit()  # Delayed deactivation
             else:
                 self.misses += 1
-                line_color = RED
-
-            # Store shot info for rendering and flash timer
-            self.last_shot_line = (self.position, target_position, line_color)
-            self.flash_timer = 10
+                logging.info("Shooter %s missed target %s", self.name, target.name)
+        else:
+            logging.info("Shooter %s did not shoot", self.name)
 
     def _get_target_index(self, target):
         if target is None:
@@ -77,31 +66,20 @@ class Shooter:
         self.action_history.append(action)
         if len(self.action_history) > 30:
             self.action_history.pop(0)
+        logging.debug("Shooter %s action history updated: %s", self.name, self.action_history)
 
     def cooldown_tick(self):
-        """Handle cooldown timer and flash timer."""
+        """Handle cooldown timer."""
         if self.cooldown > 0:
             self.cooldown -= 1
-        if self.flash_timer > 0:
-            self.flash_timer -= 1
-        else:
-            self.last_shot_line = None  # Clear the line when the timer ends
+        logging.debug("Shooter %s cooldown: %d", self.name, self.cooldown)
 
     def calculate_hit_probability(self, target):
         """Calculate the probability of hitting the target based on distance."""
         distance = np.linalg.norm(np.array(self.position) - np.array(target.position))
         probability = 1 / (1 + np.exp(-0.05 * (distance - 300)))
+        logging.debug("Shooter %s calculated hit probability for target %s: %f", self.name, target.name, probability)
         return max(0.01, min(probability, 0.9))
-
-    def draw(self, screen, font):
-        """Render the shooter and related information."""
-        pygame.draw.circle(screen, self.color, self.position, 10)
-
-        # Draw last shot line if the flash timer is active
-        if self.last_shot_line and self.flash_timer > 0:
-            start_pos, end_pos, color = self.last_shot_line
-            pygame.draw.line(screen, color, start_pos, end_pos, 2)
-
 
 class Drone:
     def __init__(self, name, position=None, velocity=None):
@@ -116,6 +94,7 @@ class Drone:
         # Continue updating position only if the drone is active
         if self.active:
             self.position[1] += self.velocity[1]
+            logging.debug("Drone %s updated position: %s", self.name, self.position)
 
             # Check if the drone has moved past the bottom of the screen
             if self.position[1] > 600:
@@ -125,12 +104,13 @@ class Drone:
         """Deactivate the drone when it reaches the bottom or is hit."""
         self.active = False
         self.hit = False  # Reset hit status when deactivating
+        logging.info("Drone %s deactivated", self.name)
 
     def handle_hit(self):
         """Called when the drone is hit."""
         self.hit = True
         self.deactivate()  # Deactivate immediately when hit
-
+        logging.info("Drone %s hit and deactivated", self.name)
 
 class World:
     def __init__(self, num_shooters=3):
@@ -141,12 +121,14 @@ class World:
         self.max_drones = 16
         self.max_drone_eliminations = self.max_drones  
         self.drones_spawned = 0  # Track the total number of drones spawned
+        logging.info("World initialized with %d shooters", num_shooters)
 
     def add_agent(self, agent):
         if agent.agent_type == 'shooter':
             self.shooters.append(agent)
         else:
             self.agents.append(agent)
+        logging.info("Agent %s added to the world", agent.name)
 
     def update(self):
         # Update shooters and drones
@@ -158,6 +140,7 @@ class World:
             if agent.agent_type == 'drone' and not agent.active and agent.hit:
                 self.drone_eliminations += 1
                 agent.hit = False  # Prevent double counting the same drone elimination
+                logging.info("Drone eliminations updated: %d", self.drone_eliminations)
 
         spawn_chance = 0.05  # 5% chance of spawning a drone each step
         if random.random() < spawn_chance and self.drones_spawned < self.max_drones:
@@ -167,16 +150,17 @@ class World:
         if self.drone_eliminations == self.max_drone_eliminations:
             for shooter in self.shooters:
                 shooter.reward += 50.0  # Additional reward for shooting down all drones
+                logging.info("Shooter %s rewarded for all drones eliminated", shooter.name)
 
     def spawn_drone(self):
         # Spawn a new drone and add it to the agents list
         position = [random.randint(0, 800), 0]
         velocity = [3, 5]
-        drone = Drone(name=f"Drone_{len(self.agents)}", position=position, velocity=velocity)
+        drone = Drone(name=f"Drone_{len(self.agents)+1}", position=position, velocity=velocity)
         drone.active = True  # Ensure new drones are active
         self.add_agent(drone)
         self.drones_spawned += 1  # Increment the count of spawned drones
-
+        logging.info("Drone %s spawned at position %s", drone.name, position)
 
 class Scenario:
     def make_world(self, num_shooters=3):
@@ -187,6 +171,7 @@ class Scenario:
             color = AGENT_COLORS[i % len(AGENT_COLORS)]  
             shooter = Shooter(name=f"Hero_{i}", position=position, color=color)
             world.add_agent(shooter)
+        logging.info("World created with %d shooters", num_shooters)
         return world
 
     def reset_world(self, world):
@@ -195,11 +180,13 @@ class Scenario:
         world.drone_eliminations = 0
         for shooter in world.shooters:
             shooter.reset_state()
+        logging.info("World reset")
 
     def reward(self, shooter, world):
         """Calculate the reward for a shooter."""
         reward = shooter.reward
         shooter.reward = 0.0
+        logging.debug("Shooter %s reward calculated: %f", shooter.name, reward)
         return reward
 
     def observation(self, agent, world):
@@ -246,7 +233,7 @@ class Scenario:
                 drone_info + probabilities + teammate_info + action_history_flat,
                 dtype=np.float32
             )
+            logging.debug("Observation generated for shooter %s", agent.name)
             return obs
         else:
             return np.zeros(1)
-

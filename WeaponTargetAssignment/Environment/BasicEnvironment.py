@@ -1,12 +1,10 @@
 import numpy as np
 import gymnasium as gym
 from gymnasium import spaces
-import pygame
+import logging
 
-# Define Colors
-WHITE = (255, 255, 255)
-GRAY = (128, 128, 128)
-AGENT_COLORS = [(0, 0, 255), (255, 165, 0), (75, 0, 130)]  # Unique colors for agents
+# Set up logging configuration
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # Define the maximum number of drones
 MAX_DRONES = 16
@@ -38,12 +36,7 @@ class BasicEnvironment(gym.Env):
         self.single_observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=(obs_dim,), dtype=np.float32)
         self.observation_space = spaces.Tuple([self.single_observation_space] * self.n_agents)
 
-        pygame.init()
-        self.screen = pygame.display.set_mode((800, 600))
-        self.clock = pygame.time.Clock()
-        self.font = pygame.font.SysFont(None, 24)
-        self.background_image = pygame.Surface((800, 600))
-        self.background_image.fill(WHITE)
+        logging.info("BasicEnvironment initialized with %d agents", self.n_agents)
 
     def step(self, actions):
         if not isinstance(actions, list):
@@ -51,39 +44,45 @@ class BasicEnvironment(gym.Env):
 
         num_targets = sum(1 for agent in self.world.agents if agent.agent_type == 'drone')
 
+        logging.debug("Number of targets: %d", num_targets)
+
         # Process actions for each shooter
         for i, action in enumerate(actions):
             shooter = self.world.shooters[i]
             if num_targets > 0 and 1 <= action <= num_targets:
                 target = self.world.agents[action - 1]
                 shooter.aim_and_shoot(target, True)
+                logging.info("Shooter %d aimed and shot at target %d", i, action)
             else:
                 shooter.aim_and_shoot(None, False)
+                logging.info("Shooter %d did not shoot", i)
 
         # Update world state
         self.world.update()
+        logging.debug("World state updated")
 
         # Get new observations
         obs = self._get_obs()
 
         # Compute rewards
         reward = sum(float(self.reward_callback(shooter, self.world)) for shooter in self.world.shooters)
-
+        logging.info("Reward computed: %f", reward)
 
         # Check if episode is done
         done = self.world.drone_eliminations >= self.world.max_drone_eliminations
+        logging.info("Episode done: %s", done)
 
         # Gym expects `truncated` to be a boolean. Here we assume it's `False`.
         truncated = False
 
         return obs, reward, done, truncated, {}
 
-
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
         self.reset_callback(self.world)
         for shooter in self.world.shooters:
             shooter.reset_state()
+        logging.info("Environment reset")
         return self._get_obs(), {}
 
     def _get_obs(self):
@@ -120,34 +119,20 @@ class BasicEnvironment(gym.Env):
 
             # Validate observation size
             if len(shooter_obs) != self.single_observation_space.shape[0]:
-                raise ValueError(
-                    f"Observation dimension mismatch: Expected {self.single_observation_space.shape[0]}, got {len(shooter_obs)}"
-                )
+                error_message = f"Observation dimension mismatch: Expected {self.single_observation_space.shape[0]}, got {len(shooter_obs)}"
+                logging.error(error_message)
+                raise ValueError(error_message)
 
             obs.append(shooter_obs)
 
         # Return as tuple to match observation space
+        logging.debug("Observations generated for all agents")
         return tuple(obs)
 
-
-
     def render(self):
-        self.screen.blit(self.background_image, (0, 0))
-        for drone in self.world.agents:
-            if drone.agent_type == 'drone' and drone.active:
-                pygame.draw.circle(self.screen, GRAY, (int(drone.position[0]), int(drone.position[1])), 20)
-                
-                # Feature toggle for probability visualization
-                if self.show_probabilities:
-                    for i, shooter in enumerate(self.world.shooters):
-                        probability = shooter.calculate_hit_probability(drone)
-                        offset_x, offset_y = 10 * i, -15 - (i * 15)
-                        prob_text = self.font.render(f"{probability:.2f}", True, AGENT_COLORS[i % len(AGENT_COLORS)])
-                        self.screen.blit(prob_text, (drone.position[0] + offset_x, drone.position[1] + offset_y))
-
-        for shooter in self.world.shooters:
-            shooter.draw(self.screen, self.font)
-        pygame.display.flip()
+        # Rendering logic can be implemented here, if needed
+        logging.info("Render function called")
 
     def close(self):
-        pygame.quit()
+        # Cleanup resources, if any
+        logging.info("Environment closed")
