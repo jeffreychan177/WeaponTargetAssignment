@@ -3,7 +3,11 @@ import random
 import logging
 
 # Set up logging configuration
-logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
+def setup_logging():
+    level = logging.INFO
+    logging.basicConfig(level=level, format='%(asctime)s - %(levelname)s - %(message)s')
+
+setup_logging()
 
 AGENT_COLORS = [(0, 0, 255), (255, 165, 0), (75, 0, 130)]
 
@@ -175,7 +179,7 @@ class Scenario:
         return world
 
     def reset_world(self, world):
-        world.agents = [agent for agent in world.agents if agent.agent_type == 'shooter']
+        world.shooters = [shooter for shooter in world.shooters if shooter.agent_type == 'shooter']
         world.drones_spawned = 0
         world.drone_eliminations = 0
         for shooter in world.shooters:
@@ -199,7 +203,7 @@ class Scenario:
             drone_info = []
             probabilities = []
             active_drones = [
-                drone for drone in world.agents if drone.agent_type == 'drone' and drone.active
+                drone for drone in world.drones if drone.agent_type == 'drone' and drone.active
             ]
             for drone in active_drones:
                 distance = np.linalg.norm(np.array(drone.position) - np.array(shooter_pos))

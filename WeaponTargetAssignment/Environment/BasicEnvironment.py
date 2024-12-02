@@ -4,7 +4,9 @@ from gymnasium import spaces
 import logging
 
 # Set up logging configuration
-logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
+def setup_logging():
+    level = logging.INFO
+    logging.basicConfig(level=level, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # Define the maximum number of drones
 MAX_DRONES = 16
@@ -12,6 +14,7 @@ MAX_DRONES = 16
 class BasicEnvironment(gym.Env):
     def __init__(self, world, reset_callback=None, reward_callback=None, observation_callback=None, render_mode=None, show_probabilities=False):
         super().__init__()
+        setup_logging()
         self.world = world
         self.reset_callback = reset_callback
         self.reward_callback = reward_callback
@@ -42,7 +45,7 @@ class BasicEnvironment(gym.Env):
         if not isinstance(actions, list):
             actions = [actions]
 
-        num_targets = len(self.world.agents)
+        num_targets = len(self.world.drones)
 
         logging.debug("Number of targets: %d", num_targets)
 
@@ -50,7 +53,7 @@ class BasicEnvironment(gym.Env):
         for i, action in enumerate(actions):
             shooter = self.world.shooters[i]
             if num_targets > 0 and 0 <= action < num_targets:
-                target = self.world.agents[action]
+                target = self.world.drones[action]
                 shooter.aim_and_shoot(target, True)
                 logging.info("Shooter %d aimed and shot at target %d", i, action)
             else:
