@@ -20,9 +20,9 @@ class Scenario:
         return self.world
 
     def reset_world(self):
-        """Reset the world without triggering the callback."""
+        """Reset the world."""
         self.world._default_reset()
-        return self.world.get_obs(), {}
+        return self.world._default_get_obs(), {}
 
     def reward(self, actions):
         """Calculate the reward."""
@@ -31,7 +31,7 @@ class Scenario:
 
     def observation(self):
         """Generate the current observation."""
-        return self.world.get_obs()
+        return self.world._default_get_obs()
 
 
 def generate_scenario():
