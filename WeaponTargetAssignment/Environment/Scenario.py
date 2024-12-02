@@ -12,6 +12,9 @@ class Scenario:
             num_targets=num_targets,
             max_distance=max_distance,
             front_line=front_line,
+            reset_callback=self.reset_world,
+            reward_callback=self.reward,
+            observation_callback=self.observation,
         )
         return self.world
 
