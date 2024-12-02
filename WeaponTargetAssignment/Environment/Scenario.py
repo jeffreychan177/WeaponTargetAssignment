@@ -44,12 +44,7 @@ def generate_scenario():
     scenario = Scenario()
 
     # Create and initialize the world
-    world = scenario.create_world()
+    scenario.create_world()
 
-    # Assign callbacks
-    return {
-        "world": world,
-        "reset_callback": scenario.reset_world,
-        "reward_callback": scenario.reward,
-        "observation_callback": scenario.observation,
-    }
+    # Return the Scenario instance directly
+    return scenario
