@@ -16,6 +16,9 @@ class BasicEnvironment(gym.Env):
         self.max_distance = max_distance
         self.front_line = front_line
 
+        # Number of agents
+        self.n_agents = self.num_weapons
+
         # Callbacks
         self.reset_callback = reset_callback
         self.reward_callback = reward_callback
