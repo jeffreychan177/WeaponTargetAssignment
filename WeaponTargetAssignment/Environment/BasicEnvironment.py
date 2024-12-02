@@ -3,9 +3,17 @@ from gymnasium import spaces
 import numpy as np
 
 class BasicEnvironment(gym.Env):
-    metadata = {"render_modes": ["human"]}
-
-    def __init__(self, num_weapons=3, num_targets=5, max_distance=15, front_line=1, render_mode=None):
+    def __init__(
+        self, 
+        num_weapons=3, 
+        num_targets=5, 
+        max_distance=15, 
+        front_line=1, 
+        reset_callback=None, 
+        reward_callback=None, 
+        observation_callback=None, 
+        render_mode=None
+    ):
         super(BasicEnvironment, self).__init__()
 
         # Parameters
@@ -13,6 +21,11 @@ class BasicEnvironment(gym.Env):
         self.num_targets = num_targets
         self.max_distance = max_distance
         self.front_line = front_line
+
+        # Callbacks
+        self.reset_callback = reset_callback
+        self.reward_callback = reward_callback
+        self.observation_callback = observation_callback
 
         # Define shared observation space
         self.observation_space = spaces.Box(
@@ -33,11 +46,10 @@ class BasicEnvironment(gym.Env):
             for _ in range(self.num_weapons)
         ]
 
-        # Shared reward flag
         self.shared_reward = True
-
         self.render_mode = render_mode
         self.reset()
+
 
     def reset(self, seed=None, options=None):
         """Reset the environment to its initial state."""
