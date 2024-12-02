@@ -16,6 +16,7 @@ class Scenario:
             reward_callback=self.reward,
             observation_callback=self.observation,
         )
+        self.world.reset()  # Explicitly reset the environment after creation
         return self.world
 
     def reset_world(self):

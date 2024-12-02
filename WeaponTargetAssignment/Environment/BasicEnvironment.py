@@ -30,7 +30,8 @@ class BasicEnvironment(gym.Env):
         self.action_space = spaces.Tuple([spaces.Discrete(self.num_targets + 1) for _ in range(self.num_weapons)])
 
         self.render_mode = render_mode
-        self.reset()
+        self.targets = []  # Initialize an empty list of targets
+        self.done = False
 
     def reset(self, **kwargs):
         """Reset the environment using the reset callback if provided."""
