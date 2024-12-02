@@ -2,7 +2,7 @@ from WeaponTargetAssignment.Environment.Scenario import generate_scenario
 from gymnasium import register
 
 scenario = generate_scenario()
-world = scenario.make_world()
+world = scenario.create_world()
 
 register(
     id='Environment-v0',
