@@ -6,7 +6,7 @@ world = scenario.make_world()
 
 register(
     id='Environment-v0',
-    entry_point='WeaponTargetAssignment.Environment:SimpleEnvironment',
+    entry_point='WeaponTargetAssignment.Environment:BasicEnvironment',
     kwargs={
         'world': world,
         'reset_callback': scenario.reset_world,
@@ -14,3 +14,4 @@ register(
         'observation_callback': scenario.observation
     }
 )
+

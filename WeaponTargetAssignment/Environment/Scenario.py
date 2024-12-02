@@ -1,4 +1,4 @@
-from WeaponTargetAssignmentEnv.Environment.MultiAgentEnvironment import MultiAgentWeaponTargetEnv
+from WeaponTargetAssignment.Environment.BasicEnvironment import BasicEnvironment
 
 class Scenario:
     def __init__(self):
@@ -8,7 +8,7 @@ class Scenario:
         """
         Create and initialize the world (environment) for multi-agent settings.
         """
-        self.world = MultiAgentWeaponTargetEnv(
+        self.world = BasicEnvironment(
             num_weapons=num_weapons,
             num_targets=num_targets,
             max_distance=max_distance,
