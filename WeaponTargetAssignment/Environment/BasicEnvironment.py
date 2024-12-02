@@ -6,99 +6,107 @@ import numpy as np
 class BasicEnvironment(gym.Env):
     metadata = {"render_modes": ["human"]}
 
-    def __init__(self, num_weapons=3, num_targets=5, max_distance=15, front_line=1, 
-                 reset_callback=None, reward_callback=None, observation_callback=None, render_mode=None):
+    def __init__(self, world, reset_callback=None, reward_callback=None, observation_callback=None, render_mode=None):
         super(BasicEnvironment, self).__init__()
 
-        # Parameters
-        self.num_weapons = num_weapons
-        self.num_targets = num_targets
-        self.max_distance = max_distance
-        self.front_line = front_line
-
-        # Number of agents
-        self.n_agents = self.num_weapons
-
-        # Callbacks
+        # World and callbacks
+        self.world = world
         self.reset_callback = reset_callback
         self.reward_callback = reward_callback
         self.observation_callback = observation_callback
-
-        # Observation and action spaces
-        agent_observation_space = spaces.Box(
-            low=np.array([0, 0] * self.num_targets),
-            high=np.array([self.max_distance, 1] * self.num_targets),
-            dtype=np.float32,
-        )
-        self.observation_space = spaces.Tuple([agent_observation_space for _ in range(self.num_weapons)])
-        self.action_space = spaces.Tuple([spaces.Discrete(self.num_targets + 1) for _ in range(self.num_weapons)])
-
         self.render_mode = render_mode
-        self.targets = []  # Initialize an empty list of targets
-        self.done = False
 
-    def reset(self, **kwargs):
-        """Reset the environment using the reset callback if provided."""
+        # Number of agents (derived from the world)
+        self.n_agents = len(world.shooters)
+
+        # Action and observation spaces
+        num_actions = len(world.agents) + 1  # Assuming all agents + a "no action" option
+        self.single_action_space = spaces.Discrete(num_actions)
+        self.action_space = spaces.Tuple([self.single_action_space] * self.n_agents)
+
+        obs_dim = (
+            2 +                                # Shooter position
+            1 +                                # Ammo count
+            1 +                                # Cooldown
+            (len(world.agents) * 5) +          # Agent info
+            len(world.agents) +                # Hit probabilities
+            ((self.n_agents - 1) * 4) +        # Teammate info
+            (30 * 2)                           # Action history
+        )
+        self.single_observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=(obs_dim,), dtype=np.float32)
+        self.observation_space = spaces.Tuple([self.single_observation_space] * self.n_agents)
+
+    def reset(self, seed=None, options=None):
+        super().reset(seed=seed)
         if self.reset_callback:
-            return self.reset_callback()
-        else:
-            return self._default_reset()
-
-    def _default_reset(self):
-        """Default reset logic."""
-        self.targets = [
-            {"distance": np.random.uniform(5, self.max_distance),
-             "base_probability": np.random.uniform(0.4, 0.8),
-             "id": i}
-            for i in range(self.num_targets)
-        ]
-        self.done = False
-        return self._default_get_obs(), {}
-
-    def get_obs(self):
-        """Get observations for all agents using the observation callback if provided."""
-        if self.observation_callback:
-            return self.observation_callback()
-        return self._default_get_obs()
-
-    def _default_get_obs(self):
-        """Default observation logic."""
-        return [
-            np.array([t["distance"], t["base_probability"]] for t in self.targets).flatten()
-            for _ in range(self.num_weapons)
-        ]
+            self.reset_callback(self.world)
+        for shooter in self.world.shooters:
+            shooter.reset_state()
+        return self._get_obs(), {}
 
     def step(self, actions):
-        """Take a step in the environment using the reward callback if provided."""
-        if self.reward_callback:
-            return self.reward_callback(actions)
+        if not isinstance(actions, list):
+            actions = [actions]
 
-        # Default reward logic
-        reward = 0
-        remaining_targets = []
-        valid_targets = {i: t for i, t in enumerate(self.targets)}
+        num_targets = len(self.world.agents)
 
-        for weapon_id, target_idx in enumerate(actions):
-            if target_idx < len(valid_targets):
-                target = valid_targets[target_idx]
-                hit_prob = min(1.0, target["base_probability"] + (1 - target["base_probability"]) * (1 / (1 + target["distance"])))
-                if np.random.rand() < hit_prob:
-                    reward += 10
-                else:
-                    target["distance"] -= 1
-                    if target["distance"] > self.front_line:
-                        remaining_targets.append(target)
-                    else:
-                        reward -= 5
+        # Process actions for each shooter
+        for i, action in enumerate(actions):
+            shooter = self.world.shooters[i]
+            if num_targets > 0 and 1 <= action <= num_targets:
+                target = self.world.agents[action - 1]
+                shooter.aim_and_shoot(target, True)
+            else:
+                shooter.aim_and_shoot(None, False)
 
-        self.targets = remaining_targets
-        self.done = len(self.targets) == 0
-        return self._default_get_obs(), reward, self.done, {}
+        # Update world state
+        self.world.update()
+
+        # Get new observations
+        obs = self._get_obs()
+
+        # Compute rewards
+        reward = sum(float(self.reward_callback(shooter, self.world)) for shooter in self.world.shooters)
+
+        # Check if episode is done
+        done = self.world.drone_eliminations >= self.world.max_drone_eliminations
+
+        # Gym expects `truncated` to be a boolean. Here we assume it's `False`.
+        truncated = False
+
+        return obs, reward, done, truncated, {}
+
+    def _get_obs(self):
+        obs = []
+        for shooter in self.world.shooters:
+            # Get the raw observation
+            shooter_obs = self.observation_callback(shooter, self.world)
+
+            # Break observation into components
+            shooter_position = shooter_obs[:2]            # 2 values
+            ammo_cooldown = shooter_obs[2:4]             # 1 ammo, 1 cooldown
+            drone_info = shooter_obs[4:4 + (len(self.world.agents) * 5)]
+            probabilities = shooter_obs[4 + (len(self.world.agents) * 5):4 + (len(self.world.agents) * 5) + len(self.world.agents)]
+            teammate_info = shooter_obs[4 + (len(self.world.agents) * 5) + len(self.world.agents):4 + (len(self.world.agents) * 5) + len(self.world.agents) + ((self.n_agents - 1) * 4)]
+            action_history = shooter_obs[-60:]           # Last 60 values (30 * 2)
+
+            # Combine all components
+            shooter_obs = np.concatenate([
+                shooter_position,
+                ammo_cooldown,
+                drone_info,
+                probabilities,
+                teammate_info,
+                action_history
+            ])
+
+            obs.append(shooter_obs)
+
+        # Return as tuple to match observation space
+        return tuple(obs)
 
     def render(self):
-        """Render the environment."""
-        if self.render_mode == "human":
-            print("\nTargets:")
-            for target in self.targets:
-                print(f"  Target {target['id']}: Distance = {target['distance']:.2f}, Base Probability = {target['base_probability']:.2f}")
-            print("\nWeapons ready for action!")
+        print("Rendering environment state...")  # Replace with actual rendering if needed
+
+    def close(self):
+        print("Closing environment...")
