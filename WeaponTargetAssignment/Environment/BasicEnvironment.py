@@ -49,12 +49,16 @@ class BasicEnvironment(gym.Env):
             for i in range(self.num_targets)
         ]
         self.done = False
-        return self.get_obs(), {}
+        return self._default_get_obs(), {}
 
     def get_obs(self):
         """Get observations for all agents using the observation callback if provided."""
         if self.observation_callback:
             return self.observation_callback()
+        return self._default_get_obs()
+
+    def _default_get_obs(self):
+        """Default observation logic."""
         return [
             np.array([t["distance"], t["base_probability"]] for t in self.targets).flatten()
             for _ in range(self.num_weapons)
@@ -85,7 +89,7 @@ class BasicEnvironment(gym.Env):
 
         self.targets = remaining_targets
         self.done = len(self.targets) == 0
-        return self.get_obs(), reward, self.done, {}
+        return self._default_get_obs(), reward, self.done, {}
 
     def render(self):
         """Render the environment."""
