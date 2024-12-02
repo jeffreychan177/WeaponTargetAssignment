@@ -1,1 +1,1 @@
-from WeaponTargetAssignment.Environment.simpleEnvironment import MultiAgentEnvironment #noqa
+from WeaponTargetAssignment.Environment.SimpleEnvironment import SimpleEnvironment #noqa
