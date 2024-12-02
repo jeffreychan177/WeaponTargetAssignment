@@ -1,8 +1,8 @@
 import numpy as np
 from gymnasium import spaces
-from environment.environment import WeaponTargetAssignmentEnv
+from environment import environment
 
-class multiagentEnv(WeaponTargetAssignmentEnv):
+class multiagentEnv(environment):
     def __init__(self, num_weapons=3, num_targets=5, max_distance=15, front_line=1, render_mode=None):
         super().__init__(num_weapons, num_targets, max_distance, front_line, render_mode)
         
