@@ -1,7 +1,7 @@
-from weaponTargetAssignmentEnv.environment.scenario import generate_scenario
+from environment.scenario import generate_multiagent_scenario
 from gymnasium import register
 
-scenario = generate_scenario()
+scenario = generate_multiagent_scenario()
 world = scenario.make_world()
 
 register(

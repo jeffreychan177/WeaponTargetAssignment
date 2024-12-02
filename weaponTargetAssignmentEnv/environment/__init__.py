@@ -1,2 +1,2 @@
-import environment #noqa
-import multiagentEnv #noqa
+from environment import environment #noqa
+from multiagentEnv import multiagentEnv #noqa
