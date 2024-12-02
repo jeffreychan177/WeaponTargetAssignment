@@ -1,4 +1,4 @@
-from environment.multiagent_env import MultiAgentWeaponTargetEnv
+from weaponTargetAssignmentEnv.environment.multiagentEnv import MultiAgentWeaponTargetEnv
 
 class MultiAgentScenario:
     def __init__(self):
