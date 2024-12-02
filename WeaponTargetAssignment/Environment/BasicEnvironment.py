@@ -11,7 +11,7 @@ AGENT_COLORS = [(0, 0, 255), (255, 165, 0), (75, 0, 130)]  # Unique colors for a
 # Define the maximum number of drones
 MAX_DRONES = 16
 
-class Environment(gym.Env):
+class BasicEnvironment(gym.Env):
     def __init__(self, world, reset_callback=None, reward_callback=None, observation_callback=None, render_mode=None, show_probabilities=False):
         super().__init__()
         self.world = world
