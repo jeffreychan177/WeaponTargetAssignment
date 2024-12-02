@@ -1,21 +1,16 @@
-from WeaponTargetAssignment.Environment.Scenario import generate_scenario
+from WeaponTargetAssignment.Environment.Scenario import Scenario
 from gymnasium import register
 
-# Generate the scenario
-scenario = generate_scenario()
-world = scenario.world
+scenario = Scenario()
+world = scenario.make_world()
 
-# Register the environment
 register(
     id='Environment-v0',
-    entry_point='WeaponTargetAssignment.Environment.BasicEnvironment:BasicEnvironment',
+    entry_point='WeaponTargetAssignment.Environment:BasicEnvironment',
     kwargs={
-        'num_weapons': 3,
-        'num_targets': 5,
-        'max_distance': 15,
-        'front_line': 1,
+        'world': world,
         'reset_callback': scenario.reset_world,
         'reward_callback': scenario.reward,
-        'observation_callback': scenario.observation,
+        'observation_callback': scenario.observation
     }
 )
