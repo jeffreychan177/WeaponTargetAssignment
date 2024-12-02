@@ -6,9 +6,7 @@ class Scenario:
         self.world = None
 
     def make_world(self, num_weapons=3, num_targets=5, max_distance=15, front_line=1):
-        """
-        Create and initialize the world (environment) for multi-agent settings.
-        """
+        """Create and initialize the world."""
         self.world = BasicEnvironment(
             num_weapons=num_weapons,
             num_targets=num_targets,
@@ -18,34 +16,21 @@ class Scenario:
         return self.world
 
     def reset_world(self):
-        """
-        Reset the world (environment) to its initial state.
-        """
+        """Reset the world."""
         return self.world.reset()
 
     def reward(self, actions):
-        """
-        Calculate the reward based on the current state and actions.
-        """
+        """Calculate the reward."""
         _, reward, _, _ = self.world.step(actions)
         return reward
 
     def observation(self):
-        """
-        Generate the current observation for all agents.
-        """
+        """Generate the current observation."""
         return self.world.get_obs()
 
 
 def generate_scenario():
-    """
-    Generates a multi-agent scenario and assigns the required callbacks.
-    """
-    # Create a scenario
+    """Generate a scenario and return the instance."""
     scenario = Scenario()
-
-    # Create and initialize the world
     scenario.make_world()
-
-    # Return the Scenario instance directly
     return scenario
