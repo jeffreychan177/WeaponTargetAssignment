@@ -16,12 +16,13 @@ class Scenario:
             reward_callback=self.reward,
             observation_callback=self.observation,
         )
-        self.world.reset()  # Explicitly reset the environment after creation
+        self.world._default_reset()  # Explicitly reset the environment after creation
         return self.world
 
     def reset_world(self):
-        """Reset the world."""
-        return self.world.reset()
+        """Reset the world without triggering the callback."""
+        self.world._default_reset()
+        return self.world.get_obs(), {}
 
     def reward(self, actions):
         """Calculate the reward."""

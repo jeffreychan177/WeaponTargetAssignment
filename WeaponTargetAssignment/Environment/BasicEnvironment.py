@@ -38,14 +38,18 @@ class BasicEnvironment(gym.Env):
         if self.reset_callback:
             return self.reset_callback()
         else:
-            self.targets = [
-                {"distance": np.random.uniform(5, self.max_distance),
-                 "base_probability": np.random.uniform(0.4, 0.8),
-                 "id": i}
-                for i in range(self.num_targets)
-            ]
-            self.done = False
-            return self.get_obs(), {}
+            return self._default_reset()
+
+    def _default_reset(self):
+        """Default reset logic."""
+        self.targets = [
+            {"distance": np.random.uniform(5, self.max_distance),
+             "base_probability": np.random.uniform(0.4, 0.8),
+             "id": i}
+            for i in range(self.num_targets)
+        ]
+        self.done = False
+        return self.get_obs(), {}
 
     def get_obs(self):
         """Get observations for all agents using the observation callback if provided."""
