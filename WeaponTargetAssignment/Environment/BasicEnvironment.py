@@ -36,7 +36,7 @@ class BasicEnvironment(gym.Env):
         self.single_observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=(obs_dim,), dtype=np.float32)
         self.observation_space = spaces.Tuple([self.single_observation_space] * self.n_agents)
 
-        logging.info("BasicEnvironment initialized with %d agents", self.n_agents)
+        # logging.info("BasicEnvironment initialized with %d agents", self.n_agents)
 
     def step(self, actions):
         if not isinstance(actions, list):
@@ -44,7 +44,7 @@ class BasicEnvironment(gym.Env):
 
         num_targets = len(self.world.agents)
 
-        logging.debug("Number of targets: %d", num_targets)
+        # logging.debug("Number of targets: %d", num_targets)
 
         # Process actions for each shooter
         for i, action in enumerate(actions):
@@ -52,25 +52,25 @@ class BasicEnvironment(gym.Env):
             if num_targets > 0 and 0 <= action < num_targets:
                 target = self.world.agents[action]
                 shooter.aim_and_shoot(target, True)
-                logging.info("Shooter %d aimed and shot at target %d", i, action)
+                # logging.info("Shooter %d aimed and shot at target %d", i, action)
             else:
                 shooter.aim_and_shoot(None, False)
-                logging.info("Shooter %d did not shoot", i)
+                # logging.info("Shooter %d did not shoot", i)
 
         # Update world state
         self.world.update()
-        logging.debug("World state updated")
+        # logging.debug("World state updated")
 
         # Get new observations
         obs = self._get_obs()
 
         # Compute rewards
         reward = sum(float(self.reward_callback(shooter, self.world)) for shooter in self.world.shooters)
-        logging.info("Reward computed: %f", reward)
+        # logging.info("Reward computed: %f", reward)
 
         # Check if episode is done
         done = self.world.drone_eliminations >= self.world.max_drone_eliminations
-        logging.info("Episode done: %s", done)
+        # logging.info("Episode done: %s", done)
 
         # Gym expects `truncated` to be a boolean. Here we assume it's `False`.
         truncated = False
@@ -82,7 +82,7 @@ class BasicEnvironment(gym.Env):
         self.reset_callback(self.world)
         for shooter in self.world.shooters:
             shooter.reset_state()
-        logging.info("Environment reset")
+        # logging.info("Environment reset")
         return self._get_obs(), {}
 
     def _get_obs(self):
@@ -120,19 +120,19 @@ class BasicEnvironment(gym.Env):
             # Validate observation size
             if len(shooter_obs) != self.single_observation_space.shape[0]:
                 error_message = f"Observation dimension mismatch: Expected {self.single_observation_space.shape[0]}, got {len(shooter_obs)}"
-                logging.error(error_message)
+                # logging.error(error_message)
                 raise ValueError(error_message)
 
             obs.append(shooter_obs)
 
         # Return as tuple to match observation space
-        logging.debug("Observations generated for all agents")
+        # logging.debug("Observations generated for all agents")
         return tuple(obs)
 
-    def render(self):
-        # Rendering logic can be implemented here, if needed
-        logging.info("Render function called")
+    # def render(self):
+    #     # Rendering logic can be implemented here, if needed
+    #     logging.info("Render function called")
 
-    def close(self):
-        # Cleanup resources, if any
-        logging.info("Environment closed")
+    # def close(self):
+    #     # Cleanup resources, if any
+    #     logging.info("Environment closed")
