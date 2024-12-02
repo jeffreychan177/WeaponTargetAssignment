@@ -2,6 +2,7 @@ import gymnasium as gym
 from gymnasium import spaces
 import numpy as np
 
+
 class BasicEnvironment(gym.Env):
     metadata = {"render_modes": ["human"]}
 
@@ -23,24 +24,14 @@ class BasicEnvironment(gym.Env):
 
         # Define individual action spaces for each agent
         self.action_spaces = [spaces.Discrete(self.num_targets + 1) for _ in range(self.num_weapons)]
-        self.observation_spaces = [
-            spaces.Box(
-                low=0,
-                high=1,
-                shape=(self.num_targets * 2,),
-                dtype=np.float32,
-            )
-            for _ in range(self.num_weapons)
-        ]
-
-        # Combine all action spaces into a single Tuple space
         self.action_space = spaces.Tuple(self.action_spaces)
 
+        # Shared reward flag
         self.shared_reward = True
+
+        # Render mode
         self.render_mode = render_mode
         self.reset()
-
-
 
     def reset(self, seed=None, options=None):
         """Reset the environment to its initial state."""
@@ -113,5 +104,4 @@ class BasicEnvironment(gym.Env):
             print("\nTargets:")
             for target in self.targets:
                 print(f"  Target {target['id']}: Distance = {target['distance']:.2f}, Base Probability = {target['base_probability']:.2f}")
-
             print("\nWeapons ready for action!")

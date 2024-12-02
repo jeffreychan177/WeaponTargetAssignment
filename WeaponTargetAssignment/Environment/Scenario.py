@@ -1,10 +1,11 @@
 from WeaponTargetAssignment.Environment.BasicEnvironment import BasicEnvironment
 
+
 class Scenario:
     def __init__(self):
         self.world = None
 
-    def create_world(self, num_weapons=3, num_targets=5, max_distance=15, front_line=1):
+    def make_world(self, num_weapons=3, num_targets=5, max_distance=15, front_line=1):
         """
         Create and initialize the world (environment) for multi-agent settings.
         """
@@ -20,7 +21,7 @@ class Scenario:
         """
         Reset the world (environment) to its initial state.
         """
-        self.world.reset()
+        return self.world.reset()
 
     def reward(self, actions):
         """
@@ -44,7 +45,7 @@ def generate_scenario():
     scenario = Scenario()
 
     # Create and initialize the world
-    scenario.create_world()
+    scenario.make_world()
 
     # Return the Scenario instance directly
     return scenario
