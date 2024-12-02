@@ -1,2 +1,2 @@
-from weaponTargetAssignmentEnv.environment.environment import environment #noqa
-from weaponTargetAssignmentEnv.environment.multiagentEnv import multiagentEnv #noqa
+from weaponTargetAssignmentEnv.environment import environment #noqa
+from weaponTargetAssignmentEnv.environment import multiagentEnv #noqa
