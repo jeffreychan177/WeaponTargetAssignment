@@ -22,11 +22,12 @@ class BasicEnvironment(gym.Env):
         self.observation_callback = observation_callback
 
         # Observation and action spaces
-        self.observation_space = spaces.Box(
+        agent_observation_space = spaces.Box(
             low=np.array([0, 0] * self.num_targets),
             high=np.array([self.max_distance, 1] * self.num_targets),
             dtype=np.float32,
         )
+        self.observation_space = spaces.Tuple([agent_observation_space for _ in range(self.num_weapons)])
         self.action_space = spaces.Tuple([spaces.Discrete(self.num_targets + 1) for _ in range(self.num_weapons)])
 
         self.render_mode = render_mode
