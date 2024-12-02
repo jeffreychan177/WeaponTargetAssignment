@@ -42,15 +42,15 @@ class BasicEnvironment(gym.Env):
         if not isinstance(actions, list):
             actions = [actions]
 
-        num_targets = sum(1 for agent in self.world.agents if agent.agent_type == 'drone')
+        num_targets = len(self.world.agents)
 
         logging.debug("Number of targets: %d", num_targets)
 
         # Process actions for each shooter
         for i, action in enumerate(actions):
             shooter = self.world.shooters[i]
-            if num_targets > 0 and 1 <= action <= num_targets:
-                target = self.world.agents[action - 1]
+            if num_targets > 0 and 0 <= action < num_targets:
+                target = self.world.agents[action]
                 shooter.aim_and_shoot(target, True)
                 logging.info("Shooter %d aimed and shot at target %d", i, action)
             else:

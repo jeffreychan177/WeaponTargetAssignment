@@ -82,10 +82,10 @@ class Shooter:
         return max(0.01, min(probability, 0.9))
 
 class Drone:
-    def __init__(self, name, position=None, velocity=None):
+    def __init__(self, name, position=None, velocity_range=None):
         self.name = name
         self.position = position or [0, 0]
-        self.velocity = velocity or [0, 4]
+        self.velocity = velocity_range or [0, 4]
         self.agent_type = 'drone'
         self.active = True
         self.hit = False  # Flag to indicate if the drone was hit
@@ -114,7 +114,7 @@ class Drone:
 
 class World:
     def __init__(self, num_shooters=3):
-        self.agents = []
+        self.drones = []
         self.shooters = []
         self.num_shooters = num_shooters
         self.drone_eliminations = 0  # Count the number of eliminated drones
@@ -127,19 +127,19 @@ class World:
         if agent.agent_type == 'shooter':
             self.shooters.append(agent)
         else:
-            self.agents.append(agent)
+            self.drones.append(agent)
         logging.info("Agent %s added to the world", agent.name)
 
     def update(self):
         # Update shooters and drones
         for shooter in self.shooters:
             shooter.cooldown_tick()
-        for agent in self.agents:
-            agent.update_position()
+        for drone in self.drones:
+            drone.update_position()
             # Check if the drone has been eliminated
-            if agent.agent_type == 'drone' and not agent.active and agent.hit:
+            if not drone.active and drone.hit:
                 self.drone_eliminations += 1
-                agent.hit = False  # Prevent double counting the same drone elimination
+                drone.hit = False  # Prevent double counting the same drone elimination
                 logging.info("Drone eliminations updated: %d", self.drone_eliminations)
 
         spawn_chance = 0.05  # 5% chance of spawning a drone each step
@@ -156,7 +156,7 @@ class World:
         # Spawn a new drone and add it to the agents list
         position = [random.randint(0, 800), 0]
         velocity = [3, 5]
-        drone = Drone(name=f"Drone_{len(self.agents)+1}", position=position, velocity=velocity)
+        drone = Drone(name=f"Drone_{len(self.drones)+1}", position=position, velocity_range=velocity)
         drone.active = True  # Ensure new drones are active
         self.add_agent(drone)
         self.drones_spawned += 1  # Increment the count of spawned drones
