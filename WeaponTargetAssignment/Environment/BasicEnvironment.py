@@ -1,5 +1,5 @@
 import gymnasium as gym
-from gymnasium.spaces import Box, Discrete
+from gymnasium.spaces import Tuple, Discrete, Dict
 import numpy as np
 
 
@@ -10,48 +10,74 @@ class BasicEnvironment(gym.Env):
         self.reward_callback = reward_callback
         self.observation_callback = observation_callback
 
-        # Define action and observation spaces
-        num_weapon_types = self.world["weapons"]["types"]
+        # Multi-agent setup: number of agents = number of weapon types
+        self.n_agents = self.world["weapons"]["types"]
+
+        # Define individual action spaces as discrete (number of target types + 1 for "no action")
         num_target_types = self.world["targets"]["types"]
-        self.action_space = Box(low=0, high=10, shape=(num_weapon_types, num_target_types), dtype=int)
-        self.observation_space = Box(low=0, high=100, shape=(num_weapon_types + num_target_types, ), dtype=float)
+        self.action_space = Tuple([Discrete(num_target_types + 1) for _ in range(self.n_agents)])
 
-    def reset(self):
+        # Define observation spaces for each agent
+        self.observation_space = Tuple([
+            Dict({
+                "weapons": Discrete(101),  # Weapon quantity (0-100)
+                "targets": Discrete(101),  # Target quantities (summed per agent for simplicity)
+                "probabilities": Dict({j: Discrete(101) for j in range(num_target_types)}),  # Success probabilities (scaled 0-100)
+                "costs": Dict({j: Discrete(11) for j in range(num_target_types)})  # Costs (scaled 0-10)
+            }) for _ in range(self.n_agents)
+        ])
+
+    def reset(self, seed=None, options=None):
         """
-        Resets the environment.
+        Resets the environment and supports seeding.
         """
+        super().reset(seed=seed)  # Ensure proper seeding behavior
         self.reset_callback(self.world)
-        return self._get_obs()
+        return self._get_obs(), {}
 
-    def step(self, action):
+    def step(self, actions):
         """
-        Applies an action and returns the next state, reward, done, and info.
+        Applies actions for all agents and returns the next state, combined reward, terminated, truncated, and info.
         """
-        # Ensure the action is within valid bounds
-        action = np.clip(action, 0, 10).astype(int)
+        individual_rewards = []
+        for i, action in enumerate(actions):
+            reward = 0
 
-        # Compute reward
-        reward = self.reward_callback(self.world, action)
+            # If action is the last discrete value, it's "no action"
+            if action < len(self.world["targets"]["quantities"]):
+                target = action
+                if self.world["weapons"]["quantities"][i] > 0 and self.world["targets"]["quantities"][target] > 0:
+                    # Compute reward for the action
+                    success_prob = self.world["probabilities"][i][target]
+                    reward += self.world["targets"]["values"][target] * success_prob
+                    reward -= self.world["costs"][i][target]
 
-        # Update world states based on action
-        for i, weapon_qty in enumerate(self.world["weapons"]["quantities"]):
-            for j, target_qty in enumerate(self.world["targets"]["quantities"]):
-                if action[i][j] > 0 and weapon_qty >= action[i][j]:
-                    self.world["weapons"]["quantities"][i] -= action[i][j]
-                    self.world["targets"]["quantities"][j] -= 1 if self.world["targets"]["quantities"][j] > 0 else 0
+                    # Update weapon and target states
+                    self.world["weapons"]["quantities"][i] -= 1
+                    self.world["targets"]["quantities"][target] -= 1 if self.world["targets"]["quantities"][target] > 0 else 0
 
-        # Determine if the episode is done (all targets eliminated or no weapons left)
-        done = all(q == 0 for q in self.world["targets"]["quantities"]) or all(q == 0 for q in self.world["weapons"]["quantities"])
+            individual_rewards.append(reward)
 
-        # Return observation, reward, done, and info
-        return self._get_obs(), reward, done, {}
+        # Combine rewards (e.g., sum all agent rewards)
+        combined_reward = sum(individual_rewards)
+
+        # Determine if the episode is terminated
+        terminated = all(q == 0 for q in self.world["targets"]["quantities"]) or all(q == 0 for q in self.world["weapons"]["quantities"])
+        truncated = False  # Add any truncation logic if applicable (e.g., max steps)
+
+        # Return observation, combined reward, terminated, truncated, and info
+        return self._get_obs(), combined_reward, terminated, truncated, {}
+
+
 
     def _get_obs(self):
         """
-        Returns the current observation.
+        Returns the current observation for all agents.
         """
         obs = self.observation_callback(self.world)
-        return np.concatenate([
-            np.array(obs["weapons"]),
-            np.array(obs["targets"])
-        ])
+        return tuple({
+            "weapons": obs["weapons"][i],
+            "targets": sum(obs["targets"]),  # Summed target quantities for simplicity
+            "probabilities": {j: int(obs["probabilities"][i][j] * 100) for j in range(len(obs["targets"]))},  # Scale to 0-100
+            "costs": {j: int(obs["costs"][i][j]) for j in range(len(obs["targets"]))}
+        } for i in range(self.n_agents))
