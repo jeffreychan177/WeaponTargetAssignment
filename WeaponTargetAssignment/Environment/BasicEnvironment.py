@@ -2,9 +2,8 @@ import gymnasium as gym
 from gymnasium.spaces import Tuple, Discrete, Dict
 import numpy as np
 
-
 class BasicEnvironment(gym.Env):
-    def __init__(self, world, reset_callback, reward_callback, observation_callback):
+    def __init__(self, world, reset_callback, reward_callback, observation_callback, max_steps=100):
         self.world = world
         self.reset_callback = reset_callback
         self.reward_callback = reward_callback
@@ -21,17 +20,21 @@ class BasicEnvironment(gym.Env):
         self.observation_space = Tuple([
             Dict({
                 "weapons": Discrete(101),  # Weapon quantity (0-100)
-                "targets": Discrete(101),  # Target quantities (summed per agent for simplicity)
+                "targets": Dict({j: Discrete(101) for j in range(num_target_types)}),  # Individual target quantities (0-100)
                 "probabilities": Dict({j: Discrete(101) for j in range(num_target_types)}),  # Success probabilities (scaled 0-100)
                 "costs": Dict({j: Discrete(11) for j in range(num_target_types)})  # Costs (scaled 0-10)
             }) for _ in range(self.n_agents)
         ])
+
+        self.max_steps = max_steps
+        self.current_step = 0
 
     def reset(self, seed=None, options=None):
         """
         Resets the environment and supports seeding.
         """
         super().reset(seed=seed)  # Ensure proper seeding behavior
+        self.current_step = 0
         self.reset_callback(self.world)
         return self._get_obs(), {}
 
@@ -40,6 +43,8 @@ class BasicEnvironment(gym.Env):
         Applies actions for all agents and returns the next state, combined reward, terminated, truncated, and info.
         """
         individual_rewards = []
+        info = {"actions": [], "rewards": []}
+
         for i, action in enumerate(actions):
             reward = 0
 
@@ -57,18 +62,23 @@ class BasicEnvironment(gym.Env):
                     self.world["targets"]["quantities"][target] -= 1 if self.world["targets"]["quantities"][target] > 0 else 0
 
             individual_rewards.append(reward)
+            info["actions"].append((i, action))
+            info["rewards"].append(reward)
 
         # Combine rewards (e.g., sum all agent rewards)
         combined_reward = sum(individual_rewards)
 
         # Determine if the episode is terminated
-        terminated = all(q == 0 for q in self.world["targets"]["quantities"]) or all(q == 0 for q in self.world["weapons"]["quantities"])
-        truncated = False  # Add any truncation logic if applicable (e.g., max steps)
+        terminated = (
+            all(q == 0 for q in self.world["targets"]["quantities"]) or
+            all(q == 0 for q in self.world["weapons"]["quantities"])
+        )
+        truncated = self.current_step >= self.max_steps
+
+        self.current_step += 1
 
         # Return observation, combined reward, terminated, truncated, and info
-        return self._get_obs(), combined_reward, terminated, truncated, {}
-
-
+        return self._get_obs(), combined_reward, terminated, truncated, info
 
     def _get_obs(self):
         """
@@ -77,7 +87,7 @@ class BasicEnvironment(gym.Env):
         obs = self.observation_callback(self.world)
         return tuple({
             "weapons": obs["weapons"][i],
-            "targets": sum(obs["targets"]),  # Summed target quantities for simplicity
+            "targets": {j: obs["targets"][j] for j in range(len(obs["targets"]))},  # Individual target quantities
             "probabilities": {j: int(obs["probabilities"][i][j] * 100) for j in range(len(obs["targets"]))},  # Scale to 0-100
             "costs": {j: int(obs["costs"][i][j]) for j in range(len(obs["targets"]))}
         } for i in range(self.n_agents))
