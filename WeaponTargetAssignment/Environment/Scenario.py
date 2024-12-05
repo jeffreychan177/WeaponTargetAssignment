@@ -1,42 +1,41 @@
-import numpy as np
+import random
 
 class Scenario:
     def make_world(self):
         """
-        Creates the initial world with weapons and targets.
+        Creates the initial world with random weapons and targets.
         """
+        weapon_types = 3
+        target_types = 3
+
         world = {
             "weapons": {
-                "types": 3,  # Example: 3 weapon types
-                "quantities": [5, 4, 3]  # Initial quantities of each type
+                "types": weapon_types,
+                "quantities": [random.randint(1, 10) for _ in range(weapon_types)]  # Random quantities between 1 and 10
             },
             "targets": {
-                "types": 3,  # Example: 3 target types
-                "quantities": [4, 3, 5],  # Initial quantities of each type
-                "values": [10, 15, 20],  # Values for destroying each target type
-                "threat_levels": [0.7, 0.9, 0.8]  # Threat levels of targets
+                "types": target_types,
+                "quantities": [random.randint(1, 10) for _ in range(target_types)],  # Random quantities between 1 and 10
+                "values": [random.randint(10, 50) for _ in range(target_types)],  # Random values between 10 and 50
+                "threat_levels": [random.uniform(0.5, 1.0) for _ in range(target_types)]  # Random threat levels between 0.5 and 1.0
             },
             "probabilities": [
-                [0.8, 0.6, 0.3],  # Weapon type 1 probabilities against each target type
-                [0.5, 0.7, 0.6],  # Weapon type 2
-                [0.2, 0.4, 0.9]   # Weapon type 3
+                [random.uniform(0.2, 1.0) for _ in range(target_types)] for _ in range(weapon_types)  # Random probabilities
             ],
             "costs": [
-                [1, 2, 3],  # Weapon type 1 costs against each target type
-                [2, 1, 2],  # Weapon type 2
-                [3, 2, 1]   # Weapon type 3
+                [random.randint(1, 5) for _ in range(target_types)] for _ in range(weapon_types)  # Random costs between 1 and 5
             ]
         }
         return world
 
     def reset_world(self, world):
         """
-        Resets the world state.
+        Resets the world state with new random values.
         """
         for i in range(world["weapons"]["types"]):
-            world["weapons"]["quantities"][i] = 5 - i  # Reset weapon quantities
+            world["weapons"]["quantities"][i] = random.randint(1, 10)  # Random quantities between 1 and 10
         for j in range(world["targets"]["types"]):
-            world["targets"]["quantities"][j] = 4 + j  # Reset target quantities
+            world["targets"]["quantities"][j] = random.randint(1, 10)  # Random quantities between 1 and 10
 
     def reward(self, world, actions):
         """
@@ -45,12 +44,10 @@ class Scenario:
         reward = 0
         for i, weapon_qty in enumerate(world["weapons"]["quantities"]):
             for j, target_qty in enumerate(world["targets"]["quantities"]):
-                if actions[i][j] > 0:
-                    # Check if we have enough weapons of type i
-                    if weapon_qty >= actions[i][j]:
-                        success_prob = world["probabilities"][i][j]
-                        reward += world["targets"]["values"][j] * (1 - (1 - success_prob) ** actions[i][j])
-                        reward -= world["costs"][i][j] * actions[i][j]
+                if actions[i] == j and weapon_qty > 0 and target_qty > 0:
+                    success_prob = world["probabilities"][i][j]
+                    reward += world["targets"]["values"][j] * success_prob
+                    reward -= world["costs"][i][j]
         return reward
 
     def observation(self, world):
