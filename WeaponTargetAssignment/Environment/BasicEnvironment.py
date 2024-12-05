@@ -2,6 +2,7 @@ import gymnasium as gym
 from gymnasium.spaces import Tuple, Discrete, Dict
 import numpy as np
 
+
 class BasicEnvironment(gym.Env):
     def __init__(self, world, reset_callback, reward_callback, observation_callback, max_steps=100):
         self.world = world
@@ -43,7 +44,7 @@ class BasicEnvironment(gym.Env):
         Applies actions for all agents and returns the next state, combined reward, terminated, truncated, and info.
         """
         individual_rewards = []
-        info = {"actions": [], "rewards": []}
+        info = {"actions": [], "rewards": [], "stats": {}}
 
         for i, action in enumerate(actions):
             reward = 0
@@ -76,6 +77,13 @@ class BasicEnvironment(gym.Env):
         truncated = self.current_step >= self.max_steps
 
         self.current_step += 1
+
+        # Populate stats for `info`
+        info["stats"] = {
+            "total_reward": sum(individual_rewards),
+            "remaining_targets": sum(self.world["targets"]["quantities"]),
+            "remaining_weapons": sum(self.world["weapons"]["quantities"])
+        }
 
         # Return observation, combined reward, terminated, truncated, and info
         return self._get_obs(), combined_reward, terminated, truncated, info

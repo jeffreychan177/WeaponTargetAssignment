@@ -1,5 +1,3 @@
-import numpy as np
-
 class Scenario:
     def make_world(self):
         """
