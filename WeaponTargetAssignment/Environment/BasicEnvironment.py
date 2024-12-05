@@ -1,114 +1,57 @@
-import numpy as np
 import gymnasium as gym
-from gymnasium import spaces
-import logging
+from gymnasium.spaces import Box, Discrete
+import numpy as np
 
-# Set up logging configuration
-def setup_logging():
-    level = logging.INFO
-    logging.basicConfig(level=level, format='%(asctime)s - %(levelname)s - %(message)s')
 
-# Define maximum numbers
-MAX_WEAPONS = 16
-MAX_TARGETS = 16
-
-class WTAEnvironment(gym.Env):
-    def __init__(self, world, reset_callback=None, reward_callback=None, observation_callback=None, render_mode=None):
-        super().__init__()
-        setup_logging()
+class BasicEnvironment(gym.Env):
+    def __init__(self, world, reset_callback, reward_callback, observation_callback):
         self.world = world
         self.reset_callback = reset_callback
         self.reward_callback = reward_callback
         self.observation_callback = observation_callback
-        self.render_mode = render_mode
 
-        self.n_agents = len(world.weapons)  # Agents correspond to weapons
-        self.single_action_space = spaces.Discrete(MAX_TARGETS)  # Each weapon targets one target
-        self.action_space = spaces.Tuple([self.single_action_space] * self.n_agents)
+        # Define action and observation spaces
+        num_weapon_types = self.world["weapons"]["types"]
+        num_target_types = self.world["targets"]["types"]
+        self.action_space = Box(low=0, high=10, shape=(num_weapon_types, num_target_types), dtype=int)
+        self.observation_space = Box(low=0, high=100, shape=(num_weapon_types + num_target_types, ), dtype=float)
 
-        obs_dim = (
-            MAX_WEAPONS +                    # Weapon states
-            MAX_TARGETS +                    # Target states
-            (MAX_WEAPONS * MAX_TARGETS) +    # Assignment matrix
-            1                                # Time step
-        )
-        self.single_observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=(obs_dim,), dtype=np.float32)
-        self.observation_space = spaces.Tuple([self.single_observation_space] * self.n_agents)
-
-        logging.info("WTAEnvironment initialized with %d agents", self.n_agents)
-
-    def step(self, actions):
-        if not isinstance(actions, list):
-            actions = [actions]
-
-        logging.debug("Actions received: %s", actions)
-
-        # Process actions for each agent
-        rewards = []
-        for i, action in enumerate(actions):
-            weapon = self.world.weapons[i]
-            if 0 <= action < len(self.world.targets):
-                target = self.world.targets[action]
-                reward = self._assign_weapon_to_target(weapon, target)
-                rewards.append(reward)
-                logging.info("Weapon %d assigned to target %d", i, action)
-            else:
-                rewards.append(0)  # No valid assignment
-                logging.info("Weapon %d did not fire", i)
-
-        # Update world state
-        self.world.update()
-        logging.debug("World state updated")
-
-        # Get new observations
-        obs = self._get_obs()
-
-        # Compute cumulative reward
-        total_reward = sum(rewards)
-        logging.info("Total reward: %f", total_reward)
-
-        # Check if episode is done
-        done = self.world.all_targets_destroyed() or self.world.time_exceeded()
-        logging.info("Episode done: %s", done)
-
-        truncated = False  # Gym expects this as a boolean
-
-        return obs, total_reward, done, truncated, {}
-
-    def _assign_weapon_to_target(self, weapon, target):
-        """Calculate reward for assigning a weapon to a target."""
-        pij = weapon.get_hit_probability(target)
-        vj = target.value
-        cost = weapon.get_assignment_cost(target)
-
-        # Reward incorporates maximizing damage and minimizing cost
-        reward = vj * pij - cost
-        return reward
-
-    def reset(self, seed=None, options=None):
-        super().reset(seed=seed)
+    def reset(self):
+        """
+        Resets the environment.
+        """
         self.reset_callback(self.world)
-        logging.info("Environment reset")
-        return self._get_obs(), {}
+        return self._get_obs()
+
+    def step(self, action):
+        """
+        Applies an action and returns the next state, reward, done, and info.
+        """
+        # Ensure the action is within valid bounds
+        action = np.clip(action, 0, 10).astype(int)
+
+        # Compute reward
+        reward = self.reward_callback(self.world, action)
+
+        # Update world states based on action
+        for i, weapon_qty in enumerate(self.world["weapons"]["quantities"]):
+            for j, target_qty in enumerate(self.world["targets"]["quantities"]):
+                if action[i][j] > 0 and weapon_qty >= action[i][j]:
+                    self.world["weapons"]["quantities"][i] -= action[i][j]
+                    self.world["targets"]["quantities"][j] -= 1 if self.world["targets"]["quantities"][j] > 0 else 0
+
+        # Determine if the episode is done (all targets eliminated or no weapons left)
+        done = all(q == 0 for q in self.world["targets"]["quantities"]) or all(q == 0 for q in self.world["weapons"]["quantities"])
+
+        # Return observation, reward, done, and info
+        return self._get_obs(), reward, done, {}
 
     def _get_obs(self):
-        """Generate observations for all agents."""
-        obs = []
-        for weapon in self.world.weapons:
-            weapon_state = weapon.get_state()
-            target_states = self.world.get_target_states()
-            assignment_matrix = self.world.get_assignment_matrix()
-            time_step = np.array([self.world.time_step], dtype=np.float32)
-
-            weapon_obs = np.concatenate([weapon_state, target_states, assignment_matrix.flatten(), time_step])
-            obs.append(weapon_obs)
-
-        return tuple(obs)
-
-    def render(self):
-        """Render the environment (if applicable)."""
-        logging.info("Render function called")
-
-    def close(self):
-        """Clean up resources."""
-        logging.info("Environment closed")
+        """
+        Returns the current observation.
+        """
+        obs = self.observation_callback(self.world)
+        return np.concatenate([
+            np.array(obs["weapons"]),
+            np.array(obs["targets"])
+        ])
