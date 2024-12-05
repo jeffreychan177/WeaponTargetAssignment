@@ -86,8 +86,8 @@ class BasicEnvironment(gym.Env):
         """
         obs = self.observation_callback(self.world)
         return tuple({
-            "weapons": obs["weapons"][i],
-            "targets": {j: obs["targets"][j] for j in range(len(obs["targets"]))},  # Individual target quantities
+            "weapons": int(obs["weapons"][i]),  # Ensure each weapon count is an integer
+            "targets": {j: int(obs["targets"][j]) for j in range(len(obs["targets"]))},  # Ensure target counts are integers
             "probabilities": {j: int(obs["probabilities"][i][j] * 100) for j in range(len(obs["targets"]))},  # Scale to 0-100
             "costs": {j: int(obs["costs"][i][j]) for j in range(len(obs["targets"]))}
         } for i in range(self.n_agents))
