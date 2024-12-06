@@ -1,1 +1,3 @@
-from WeaponTargetAssignment.Environment.BasicEnvironment import BasicEnvironment #noqa
+from WeaponTargetAssignment.Environment.SingleStageEnvironment import SingleStageEnvironment #noqa
+from WeaponTargetAssignment.Environment.TwoStageEnvironment import TwoStageEnvironment #noqa
+from WeaponTargetAssignment.Environment.MultiStageEnvironment import MultiStageEnvironment #noqa

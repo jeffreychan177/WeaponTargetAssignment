@@ -3,12 +3,13 @@ from gymnasium.spaces import Tuple, Discrete, Dict
 import numpy as np
 
 
-class BasicEnvironment(gym.Env):
-    def __init__(self, world, reset_callback, reward_callback, observation_callback):
+class MultiStageEnvironment(gym.Env):
+    def __init__(self, world, reset_callback, reward_callback, observation_callback, num_stages=3):
         self.world = world
         self.reset_callback = reset_callback
         self.reward_callback = reward_callback
         self.observation_callback = observation_callback
+        self.num_stages = num_stages
 
         # Multi-agent setup: number of agents = number of weapon types
         self.n_agents = self.world["weapons"]["types"]
@@ -79,20 +80,40 @@ class BasicEnvironment(gym.Env):
         # Combine rewards (e.g., sum all agent rewards)
         combined_reward = sum(individual_rewards)
 
-        # Determine if the episode is terminated
-        terminated = (
-            all(q == 0 for q in self.world["targets"]["quantities"])
-            or all(q == 0 for q in self.world["weapons"]["quantities"])
-        )
-        truncated = False  # Add any truncation logic if applicable (e.g., max steps)
+        # Determine if the current stage is complete
+        stage_terminated = self._check_stage_termination()
+        terminated = False
 
-        # Progress to the next stage if the first stage is complete
-        if self.stage == 1 and terminated:
-            self.stage = 2
-            terminated = False
+        if stage_terminated:
+            if self.stage < self.num_stages:
+                self.stage += 1
+                self._on_stage_transition()  # Handle stage-specific logic
+            else:
+                terminated = True  # End the episode after the final stage
+
+        truncated = False  # Add any truncation logic if applicable (e.g., max steps)
 
         # Return observation, combined reward, terminated, truncated, and info
         return self._get_obs(), combined_reward, terminated, truncated, {}
+
+    def _check_stage_termination(self):
+        """
+        Determines if the current stage is complete.
+        """
+        return (
+            all(q == 0 for q in self.world["targets"]["quantities"])
+            or all(q == 0 for q in self.world["weapons"]["quantities"])
+        )
+
+    def _on_stage_transition(self):
+        """
+        Handles logic when transitioning to a new stage.
+        For example, resetting targets, weapons, or adjusting world parameters.
+        """
+        # Example: Replenish some resources or modify world state for the new stage
+        self.world["targets"]["quantities"] = np.random.randint(1, 10, size=self.world["targets"]["types"])
+        self.world["weapons"]["quantities"] = np.random.randint(1, 5, size=self.n_agents)
+        # Add any additional adjustments needed for the new stage
 
     def _get_obs(self):
         """
@@ -105,5 +126,3 @@ class BasicEnvironment(gym.Env):
             "probabilities": {j: int(np.clip(obs["probabilities"][i][j] * 100, 0, 100)) for j in range(len(obs["targets"]))},
             "costs": {j: int(np.clip(obs["costs"][i][j], 0, 10)) for j in range(len(obs["targets"]))}
         } for i in range(self.n_agents))
-
-
