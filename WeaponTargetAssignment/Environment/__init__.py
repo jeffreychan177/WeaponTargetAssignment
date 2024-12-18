@@ -1,1 +1,1 @@
-from WeaponTargetAssignment.Environment.PartiallyObservableEnvironment import PartiallyObservableEnvironment #noqa
+from WeaponTargetAssignment.Environment.MultiStageEnvironment import MultiStageEnvironment #noqa
