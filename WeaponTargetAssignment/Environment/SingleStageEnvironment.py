@@ -1,8 +1,8 @@
-import cupy as cp
+import torch
 import random
-import gymnasium as gym
 from gymnasium.spaces import Tuple, Discrete, Dict
 import numpy as np
+import gymnasium as gym
 
 class SingleStageEnvironment(gym.Env):
     def __init__(self, world, reset_callback, reward_callback, observation_callback):
@@ -41,7 +41,7 @@ class SingleStageEnvironment(gym.Env):
         Applies actions for all agents and returns the next state, combined reward, terminated, truncated, and info.
         """
         individual_rewards = []
-        target_state_update = cp.zeros_like(self.world["targets"]["quantities"], dtype=cp.float32)
+        target_state_update = torch.zeros_like(self.world["targets"]["quantities"], device=self.world["targets"]["quantities"].device)
 
         for i, action in enumerate(actions):
             reward = 0
@@ -51,14 +51,14 @@ class SingleStageEnvironment(gym.Env):
                 target = action
                 if self.world["weapons"]["quantities"][i] > 0 and self.world["targets"]["quantities"][target] > 0:
                     # Compute survival probability
-                    prob_survive = cp.prod(1 - self.world["probabilities"][:, target])
+                    prob_survive = torch.prod(1 - self.world["probabilities"][:, target])
                     destroyed = 1 - prob_survive
                     target_state_update[target] += destroyed
 
                     # Compute reward for the action
-                    success_prob = self.world["probabilities"][i, target]
+                    success_prob = self.world["probabilities"][i][target]
                     reward += self.world["targets"]["values"][target] * destroyed
-                    reward -= self.world["costs"][i, target]
+                    reward -= self.world["costs"][i][target]
 
                     # Update weapon and target states
                     self.world["weapons"]["quantities"][i] -= 1
@@ -67,17 +67,15 @@ class SingleStageEnvironment(gym.Env):
             individual_rewards.append(reward)
 
         # Update the target states based on survival probabilities
-        self.world["targets"]["quantities"] = cp.maximum(
-            self.world["targets"]["quantities"] - target_state_update, 0
-        )
+        self.world["targets"]["quantities"] = torch.clamp(self.world["targets"]["quantities"] - target_state_update, min=0)
 
         # Combine rewards (e.g., sum all agent rewards)
         combined_reward = sum(individual_rewards)
 
         # Determine if the episode is terminated
         terminated = (
-            all(q == 0 for q in self.world["targets"]["quantities"].get())
-            or all(q == 0 for q in self.world["weapons"]["quantities"].get())
+            all(q == 0 for q in self.world["targets"]["quantities"].cpu().numpy())
+            or all(q == 0 for q in self.world["weapons"]["quantities"].cpu().numpy())
         )
         truncated = False  # Add any truncation logic if applicable (e.g., max steps)
 
