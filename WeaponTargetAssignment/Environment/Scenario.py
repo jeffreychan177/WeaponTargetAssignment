@@ -4,13 +4,6 @@ class Scenario:
     def __init__(self, n_agents=3, num_targets=3):
         """
         Initializes the scenario parameters.
-
-        Parameters
-        ----------
-        n_agents : int
-            Number of weapon (agent) types.
-        num_targets : int
-            Number of target types.
         """
         self.n_agents = n_agents
         self.num_targets = num_targets
@@ -68,7 +61,6 @@ class Scenario:
     def observation(self, world):
         """
         Returns the current full state of the world.
-        (No partial observability handled here.)
         """
         return {
             "weapons": world["weapons"]["quantities"],
