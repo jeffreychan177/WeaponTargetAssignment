@@ -1,11 +1,7 @@
-import torch
 import random
-from gymnasium.spaces import Tuple, Discrete, Dict
-import numpy as np
-import gymnasium as gym
 
 class Scenario:
-    def make_world(self, device="cpu"):
+    def make_world(self):
         """
         Creates the initial world with random weapons and targets.
         """
@@ -15,16 +11,20 @@ class Scenario:
         world = {
             "weapons": {
                 "types": weapon_types,
-                "quantities": torch.randint(1, 11, (weapon_types,), device=device)  # Random quantities between 1 and 10
+                "quantities": [random.randint(1, 10) for _ in range(weapon_types)]  # Random quantities between 1 and 10
             },
             "targets": {
                 "types": target_types,
-                "quantities": torch.randint(1, 11, (target_types,), device=device),  # Random quantities between 1 and 10
-                "values": torch.randint(10, 51, (target_types,), device=device),  # Random values between 10 and 50
-                "threat_levels": torch.rand(target_types, device=device) * 0.5 + 0.5  # Random threat levels between 0.5 and 1.0
+                "quantities": [random.randint(1, 10) for _ in range(target_types)],  # Random quantities between 1 and 10
+                "values": [random.randint(10, 50) for _ in range(target_types)],  # Random values between 10 and 50
+                "threat_levels": [random.uniform(0.5, 1.0) for _ in range(target_types)]  # Random threat levels between 0.5 and 1.0
             },
-            "probabilities": torch.rand(weapon_types, target_types, device=device) * 0.8 + 0.2,  # Random probabilities
-            "costs": torch.randint(1, 6, (weapon_types, target_types), device=device)  # Random costs between 1 and 5
+            "probabilities": [
+                [random.uniform(0.2, 1.0) for _ in range(target_types)] for _ in range(weapon_types)  # Random probabilities
+            ],
+            "costs": [
+                [random.randint(1, 5) for _ in range(target_types)] for _ in range(weapon_types)  # Random costs between 1 and 5
+            ]
         }
         return world
 
@@ -32,8 +32,10 @@ class Scenario:
         """
         Resets the world state with new random values.
         """
-        world["weapons"]["quantities"] = torch.randint(1, 11, (world["weapons"]["types"],), device=world["weapons"]["quantities"].device)
-        world["targets"]["quantities"] = torch.randint(1, 11, (world["targets"]["types"],), device=world["targets"]["quantities"].device)
+        for i in range(world["weapons"]["types"]):
+            world["weapons"]["quantities"][i] = random.randint(1, 10)  # Random quantities between 1 and 10
+        for j in range(world["targets"]["types"]):
+            world["targets"]["quantities"][j] = random.randint(1, 10)  # Random quantities between 1 and 10
 
     def reward(self, world, actions):
         """
@@ -53,8 +55,8 @@ class Scenario:
         Returns the current state of the world.
         """
         return {
-            "weapons": world["weapons"]["quantities"].cpu().numpy(),
-            "targets": world["targets"]["quantities"].cpu().numpy(),
-            "probabilities": world["probabilities"].cpu().numpy(),
-            "costs": world["costs"].cpu().numpy()
+            "weapons": world["weapons"]["quantities"],
+            "targets": world["targets"]["quantities"],
+            "probabilities": world["probabilities"],
+            "costs": world["costs"]
         }
