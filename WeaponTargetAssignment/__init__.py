@@ -36,3 +36,14 @@ register(
         'observation_callback': scenario.observation
     }
 )
+
+register(
+    id='Environment-v3',
+    entry_point='WeaponTargetAssignment.Environment:FullyObservableSingleStageEnvironment',
+    kwargs={
+        'world': world,
+        'reset_callback': scenario.reset_world,
+        'reward_callback': scenario.reward,
+        'observation_callback': scenario.observation
+    }
+)

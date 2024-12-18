@@ -1,4 +1,8 @@
+import cupy as cp
 import random
+import gymnasium as gym
+from gymnasium.spaces import Tuple, Discrete, Dict
+import numpy as np
 
 class Scenario:
     def make_world(self):
@@ -11,20 +15,20 @@ class Scenario:
         world = {
             "weapons": {
                 "types": weapon_types,
-                "quantities": [random.randint(1, 10) for _ in range(weapon_types)]  # Random quantities between 1 and 10
+                "quantities": cp.array([random.randint(1, 10) for _ in range(weapon_types)], dtype=cp.int32)
             },
             "targets": {
                 "types": target_types,
-                "quantities": [random.randint(1, 10) for _ in range(target_types)],  # Random quantities between 1 and 10
-                "values": [random.randint(10, 50) for _ in range(target_types)],  # Random values between 10 and 50
-                "threat_levels": [random.uniform(0.5, 1.0) for _ in range(target_types)]  # Random threat levels between 0.5 and 1.0
+                "quantities": cp.array([random.randint(1, 10) for _ in range(target_types)], dtype=cp.int32),
+                "values": cp.array([random.randint(10, 50) for _ in range(target_types)], dtype=cp.float32),
+                "threat_levels": cp.array([random.uniform(0.5, 1.0) for _ in range(target_types)], dtype=cp.float32)
             },
-            "probabilities": [
-                [random.uniform(0.2, 1.0) for _ in range(target_types)] for _ in range(weapon_types)  # Random probabilities
-            ],
-            "costs": [
-                [random.randint(1, 5) for _ in range(target_types)] for _ in range(weapon_types)  # Random costs between 1 and 5
-            ]
+            "probabilities": cp.array([
+                [random.uniform(0.2, 1.0) for _ in range(target_types)] for _ in range(weapon_types)
+            ], dtype=cp.float32),
+            "costs": cp.array([
+                [random.randint(1, 5) for _ in range(target_types)] for _ in range(weapon_types)
+            ], dtype=cp.float32)
         }
         return world
 
@@ -32,22 +36,24 @@ class Scenario:
         """
         Resets the world state with new random values.
         """
-        for i in range(world["weapons"]["types"]):
-            world["weapons"]["quantities"][i] = random.randint(1, 10)  # Random quantities between 1 and 10
-        for j in range(world["targets"]["types"]):
-            world["targets"]["quantities"][j] = random.randint(1, 10)  # Random quantities between 1 and 10
+        world["weapons"]["quantities"] = cp.array(
+            [random.randint(1, 10) for _ in range(world["weapons"]["types"])], dtype=cp.int32
+        )
+        world["targets"]["quantities"] = cp.array(
+            [random.randint(1, 10) for _ in range(world["targets"]["types"])], dtype=cp.int32
+        )
 
     def reward(self, world, actions):
         """
         Computes the reward based on weapon-target assignments.
         """
         reward = 0
-        for i, weapon_qty in enumerate(world["weapons"]["quantities"]):
-            for j, target_qty in enumerate(world["targets"]["quantities"]):
+        for i, weapon_qty in enumerate(world["weapons"]["quantities"].get()):
+            for j, target_qty in enumerate(world["targets"]["quantities"].get()):
                 if actions[i] == j and weapon_qty > 0 and target_qty > 0:
-                    success_prob = world["probabilities"][i][j]
+                    success_prob = world["probabilities"][i, j]
                     reward += world["targets"]["values"][j] * success_prob
-                    reward -= world["costs"][i][j]
+                    reward -= world["costs"][i, j]
         return reward
 
     def observation(self, world):
@@ -55,8 +61,8 @@ class Scenario:
         Returns the current state of the world.
         """
         return {
-            "weapons": world["weapons"]["quantities"],
-            "targets": world["targets"]["quantities"],
-            "probabilities": world["probabilities"],
-            "costs": world["costs"]
+            "weapons": world["weapons"]["quantities"].get().tolist(),
+            "targets": world["targets"]["quantities"].get().tolist(),
+            "probabilities": world["probabilities"].get().tolist(),
+            "costs": world["costs"].get().tolist()
         }
