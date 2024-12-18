@@ -13,26 +13,26 @@ class MultiStageEnvironment(gym.Env):
                  n_agents=None, 
                  num_targets=None):
         """
-        Initialize the MultiStageEnvironment with given parameters.
-        
-        Parameters:
-        -----------
+        MultiStageEnvironment
+
+        Parameters
+        ----------
         world : dict
-            The initial world state dictionary (weapons, targets, probabilities, etc.).
+            The initial world state.
         reset_callback : function
-            A callback function to reset the world.
+            Function to reset the world.
         reward_callback : function
-            A callback function to compute rewards.
+            Function to compute rewards.
         observation_callback : function
-            A callback function to produce observations.
-        num_stages : int, optional
-            Number of stages in the episode.
-        partial_obs : bool, optional
-            Whether to use partial observability.
-        n_agents : int, optional
-            Number of agents (weapons) to simulate.
-        num_targets : int, optional
-            Number of targets to simulate.
+            Function to get the full state of the world.
+        num_stages : int
+            Number of stages in an episode.
+        partial_obs : bool
+            Whether to return partial observations.
+        n_agents : int or None
+            Number of agents. If None, derived from world.
+        num_targets : int or None
+            Number of targets. If None, derived from world.
         """
         self.world = world
         self.reset_callback = reset_callback
@@ -41,31 +41,28 @@ class MultiStageEnvironment(gym.Env):
         self.num_stages = num_stages
         self.partial_obs = partial_obs
 
-        # Use provided n_agents and num_targets if available, else derive from world
         self.n_agents = n_agents if n_agents is not None else self.world["weapons"]["types"]
-        n_targets = num_targets if num_targets is not None else self.world["targets"]["types"]
+        self.n_targets = num_targets if num_targets is not None else self.world["targets"]["types"]
 
         # Define individual action spaces as discrete (number of target types + 1 for "no action")
-        self.action_space = Tuple([Discrete(n_targets + 1) for _ in range(self.n_agents)])
+        self.action_space = Tuple([Discrete(self.n_targets + 1) for _ in range(self.n_agents)])
 
         # Define observation spaces for each agent
-        # Adjust observation space if partial_obs is True (for simplicity we keep the same shape, but in practice
-        # partial observations might reduce the dimension or show only a subset of the world).
         self.observation_space = Tuple([
             Dict({
                 "weapons": Discrete(101),  # Weapon quantity (0-100)
                 "targets": Discrete(101),  # Target quantities
-                "probabilities": Dict({j: Discrete(101) for j in range(n_targets)}),  # Success probabilities
-                "costs": Dict({j: Discrete(11) for j in range(n_targets)})  # Costs
+                "probabilities": Dict({j: Discrete(101) for j in range(self.n_targets)}),
+                "costs": Dict({j: Discrete(11) for j in range(self.n_targets)})
             }) for _ in range(self.n_agents)
         ])
 
-        self.stage = 1  # Start with the first stage
+        self.stage = 1
 
     def reset(self, seed=None, options=None):
-        super().reset(seed=seed)  # Ensure proper seeding behavior
+        super().reset(seed=seed)
         self.reset_callback(self.world)
-        self.stage = 1  # Reset to the first stage
+        self.stage = 1
         return self._get_obs(), {}
 
     def step(self, actions):
@@ -74,7 +71,7 @@ class MultiStageEnvironment(gym.Env):
 
         for i, action in enumerate(actions):
             reward = 0
-            # If action is the last discrete value, it's "no action"
+            # If action == number of targets (the last discrete value), it's "no action"
             if action < len(self.world["targets"]["quantities"]):
                 target = action
                 if self.world["weapons"]["quantities"][i] > 0 and self.world["targets"]["quantities"][target] > 0:
@@ -97,26 +94,26 @@ class MultiStageEnvironment(gym.Env):
 
             individual_rewards.append(reward)
 
-        # Update the target states
+        # Update target states
         self.world["targets"]["quantities"] = np.maximum(
             self.world["targets"]["quantities"] - target_state_update, 0
         )
 
-        # Combine rewards (e.g., sum all agent rewards)
+        # Combine rewards
         combined_reward = sum(individual_rewards)
 
-        # Determine if the current stage is complete
+        # Determine if stage is done
         stage_terminated = self._check_stage_termination()
         terminated = False
 
         if stage_terminated:
             if self.stage < self.num_stages:
                 self.stage += 1
-                self._on_stage_transition()  # Handle stage-specific logic
+                self._on_stage_transition()
             else:
-                terminated = True  # End the episode after the final stage
+                terminated = True
 
-        truncated = False  # Modify if you have truncation conditions
+        truncated = False
 
         return self._get_obs(), combined_reward, terminated, truncated, {}
 
@@ -132,21 +129,28 @@ class MultiStageEnvironment(gym.Env):
         self.world["weapons"]["quantities"] = np.random.randint(1, 5, size=self.n_agents)
 
     def _get_obs(self):
-        obs = self.observation_callback(self.world)
-        # If partial_obs is True, modify obs to return partial information.
-        # For demonstration, we just return the same format, but you would slice or mask the observation.
-        # E.g., show fewer targets or only local info for partial observations.
-        
-        # Convert probabilities and costs to discrete values as before.
-        return tuple({
-            "weapons": int(np.clip(obs["weapons"][i], 0, 100)),
-            "targets": int(np.clip(sum(obs["targets"]), 0, 100)),
-            "probabilities": {
-                j: int(np.clip(obs["probabilities"][i][j] * 100, 0, 100))
-                for j in range(len(obs["targets"]))
-            },
-            "costs": {
-                j: int(np.clip(obs["costs"][i][j], 0, 10))
-                for j in range(len(obs["targets"]))
+        full_obs = self.observation_callback(self.world)
+
+        # Apply partial observability if enabled
+        # For demonstration, if partial_obs is True, we only show half of the targets (rounded down).
+        # In a real scenario, you'd implement a more meaningful partial observation scheme.
+        visible_targets_count = self.n_targets // 2 if self.partial_obs else self.n_targets
+
+        # Clip values to defined discrete ranges
+        obs = []
+        for i in range(self.n_agents):
+            agent_obs = {
+                "weapons": int(np.clip(full_obs["weapons"][i], 0, 100)),
+                "targets": int(np.clip(sum(full_obs["targets"][:visible_targets_count]), 0, 100)),
+                "probabilities": {
+                    j: int(np.clip(full_obs["probabilities"][i][j] * 100, 0, 100))
+                    for j in range(visible_targets_count)
+                },
+                "costs": {
+                    j: int(np.clip(full_obs["costs"][i][j], 0, 10))
+                    for j in range(visible_targets_count)
+                }
             }
-        } for i in range(self.n_agents))
+            obs.append(agent_obs)
+
+        return tuple(obs)
