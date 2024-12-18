@@ -1,4 +1,1 @@
-from WeaponTargetAssignment.Environment.SingleStageEnvironment import SingleStageEnvironment #noqa
-from WeaponTargetAssignment.Environment.TwoStageEnvironment import TwoStageEnvironment #noqa
-from WeaponTargetAssignment.Environment.MultiStageEnvironment import MultiStageEnvironment #noqa
-from WeaponTargetAssignment.Environment.FullyObservableSingleStageEnvironment import FullyObservableSingleStageEnvironment #noqa
+from WeaponTargetAssignment.Environment.PartiallyObservableEnvironment import PartiallyObservableEnvironment #noqa
