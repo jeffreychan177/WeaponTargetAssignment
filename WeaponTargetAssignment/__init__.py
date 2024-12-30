@@ -4,7 +4,7 @@ from WeaponTargetAssignment.Environment.Scenario import Scenario
 
 # Define parameter ranges
 partial_obs_options = [True, False]
-num_agents_options = [1, 2, 5]      
+num_agents_options = [1, 3, 5]      
 num_stages_options = [1,2,3]         
 num_targets_options = [3, 5, 10]       
 

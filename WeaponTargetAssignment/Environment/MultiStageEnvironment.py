@@ -1,7 +1,6 @@
 import gymnasium as gym
 from gymnasium.spaces import Tuple, Discrete, Dict
 import numpy as np
-import torch
 
 class MultiStageEnvironment(gym.Env):
     def __init__(self, 
@@ -12,10 +11,9 @@ class MultiStageEnvironment(gym.Env):
                  num_stages=3, 
                  partial_obs=False, 
                  n_agents=None, 
-                 num_targets=None,
-                 device='cpu'):
+                 num_targets=None):
         """
-        MultiStageEnvironment (PyTorch version)
+        MultiStageEnvironment
 
         Parameters
         ----------
@@ -35,17 +33,13 @@ class MultiStageEnvironment(gym.Env):
             Number of agents. If None, derived from world.
         num_targets : int or None
             Number of targets. If None, derived from world.
-        device : str
-            'cpu' or 'cuda' device for torch tensors.
         """
+        self.world = world
         self.reset_callback = reset_callback
         self.reward_callback = reward_callback
         self.observation_callback = observation_callback
         self.num_stages = num_stages
         self.partial_obs = partial_obs
-        self.device = device
-
-        self._initialize_world(world)
 
         self.n_agents = n_agents if n_agents is not None else self.world["weapons"]["types"]
         self.n_targets = num_targets if num_targets is not None else self.world["targets"]["types"]
@@ -65,75 +59,53 @@ class MultiStageEnvironment(gym.Env):
 
         self.stage = 1
 
-    def _initialize_world(self, world):
-        """
-        Convert the world dictionary values to PyTorch tensors for internal usage.
-        """
-        self.world = {
-            "weapons": {
-                "types": world["weapons"]["types"],
-                "quantities": torch.tensor(world["weapons"]["quantities"], dtype=torch.float32).to(self.device)
-            },
-            "targets": {
-                "types": world["targets"]["types"],
-                "quantities": torch.tensor(world["targets"]["quantities"], dtype=torch.float32).to(self.device),
-                "values": torch.tensor(world["targets"]["values"], dtype=torch.float32).to(self.device),
-                "threat_levels": torch.tensor(world["targets"]["threat_levels"], dtype=torch.float32).to(self.device)
-            },
-            "probabilities": torch.tensor(world["probabilities"], dtype=torch.float32).to(self.device),
-            "costs": torch.tensor(world["costs"], dtype=torch.float32).to(self.device)
-        }
-
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
-        self.reset_callback(self._convert_to_cpu_world())  # Callback expects CPU/Python objects
-        # Re-initialize the tensors from the possibly updated python dictionary after reset
-        # Because reset_callback modifies in-place, we must fetch the modified values.
-        updated_world = self._convert_to_cpu_world()
-        self._initialize_world(updated_world)
+        self.reset_callback(self.world)
         self.stage = 1
-        obs = self._get_obs()
-        return obs, {}
+        return self._get_obs(), {}
 
     def step(self, actions):
-        # Convert actions to torch if needed
-        # actions are typically python ints, just use them directly in indexing
         individual_rewards = []
-        target_state_update = torch.zeros_like(self.world["targets"]["quantities"], dtype=torch.float32)
+        target_state_update = np.zeros_like(self.world["targets"]["quantities"])
 
         for i, action in enumerate(actions):
-            reward = 0.0  # ensure this is a Python float
-            if action < self.world["targets"]["quantities"].shape[0]:
+            reward = 0
+            # If action == number of targets (the last discrete value), it's "no action"
+            if action < len(self.world["targets"]["quantities"]):
                 target = action
                 if self.world["weapons"]["quantities"][i] > 0 and self.world["targets"]["quantities"][target] > 0:
-                    probs = self.world["probabilities"][:, target]
-                    prob_survive = torch.prod(1 - probs)
+                    # Compute survival probability
+                    prob_survive = np.prod([
+                        1 - self.world["probabilities"][i][target]
+                        for i in range(self.n_agents)
+                    ])
                     destroyed = 1 - prob_survive
-                    success_prob = self.world["probabilities"][i, target]
-                    
-                    val = self.world["targets"]["values"][target]
-                    cost = self.world["costs"][i, target]
-                    
-                    # Use .item() to convert torch tensors to Python floats
-                    destroyed_val = destroyed.item()
-                    val = val.item()
-                    cost = cost.item()
-                    
-                    reward += val * destroyed_val
-                    reward -= cost
+                    target_state_update[target] = destroyed
 
+                    # Compute reward for the action
+                    success_prob = self.world["probabilities"][i][target]
+                    reward += self.world["targets"]["values"][target] * destroyed
+                    reward -= self.world["costs"][i][target]
+
+                    # Update weapon and target states
                     self.world["weapons"]["quantities"][i] -= 1
                     self.world["targets"]["quantities"][target] -= destroyed
 
             individual_rewards.append(reward)
 
-        combined_reward = sum(individual_rewards)  # This should now be a float sum of Python floats
-        combined_reward = float(combined_reward)   # Ensure explicit conversion (just for safety)
+        # Update target states
+        self.world["targets"]["quantities"] = np.maximum(
+            self.world["targets"]["quantities"] - target_state_update, 0
+        )
 
+        # Combine rewards
+        combined_reward = sum(individual_rewards)
 
-        # Check if stage is done
+        # Determine if stage is done
         stage_terminated = self._check_stage_termination()
         terminated = False
+
         if stage_terminated:
             if self.stage < self.num_stages:
                 self.stage += 1
@@ -143,50 +115,28 @@ class MultiStageEnvironment(gym.Env):
 
         truncated = False
 
-        obs = self._get_obs()
-        return obs, combined_reward, terminated, truncated, {}
+        return self._get_obs(), combined_reward, terminated, truncated, {}
 
     def _check_stage_termination(self):
         return (
-            torch.all(self.world["targets"]["quantities"] == 0) or
-            torch.all(self.world["weapons"]["quantities"] == 0)
+            all(q == 0 for q in self.world["targets"]["quantities"]) or
+            all(q == 0 for q in self.world["weapons"]["quantities"])
         )
 
     def _on_stage_transition(self):
-        # Random initialization is on CPU, so we do it in numpy and convert
-        new_target_quantities = np.random.randint(1, 10, size=self.world["targets"]["types"])
-        new_weapon_quantities = np.random.randint(1, 5, size=self.world["weapons"]["types"])
-
-        self.world["targets"]["quantities"] = torch.tensor(new_target_quantities, dtype=torch.float32).to(self.device)
-        self.world["weapons"]["quantities"] = torch.tensor(new_weapon_quantities, dtype=torch.float32).to(self.device)
-
-    def _convert_to_cpu_world(self):
-        """
-        Convert the torch-based world back to python lists and dicts for callbacks if needed.
-        """
-        return {
-            "weapons": {
-                "types": self.world["weapons"]["types"],
-                "quantities": self.world["weapons"]["quantities"].cpu().tolist()
-            },
-            "targets": {
-                "types": self.world["targets"]["types"],
-                "quantities": self.world["targets"]["quantities"].cpu().tolist(),
-                "values": self.world["targets"]["values"].cpu().tolist(),
-                "threat_levels": self.world["targets"]["threat_levels"].cpu().tolist()
-            },
-            "probabilities": self.world["probabilities"].cpu().tolist(),
-            "costs": self.world["costs"].cpu().tolist()
-        }
+        # Example stage transition logic
+        self.world["targets"]["quantities"] = np.random.randint(1, 10, size=self.world["targets"]["types"])
+        self.world["weapons"]["quantities"] = np.random.randint(1, 5, size=self.n_agents)
 
     def _get_obs(self):
-        # Get the full observation from scenario (in CPU/numpy format)
-        full_world_cpu = self._convert_to_cpu_world()
-        full_obs = self.observation_callback(full_world_cpu)
+        full_obs = self.observation_callback(self.world)
 
-        # Apply partial observability
+        # Apply partial observability if enabled
+        # For demonstration, if partial_obs is True, we only show half of the targets (rounded down).
+        # In a real scenario, you'd implement a more meaningful partial observation scheme.
         visible_targets_count = self.n_targets // 2 if self.partial_obs else self.n_targets
 
+        # Clip values to defined discrete ranges
         obs = []
         for i in range(self.n_agents):
             agent_obs = {
@@ -203,5 +153,4 @@ class MultiStageEnvironment(gym.Env):
             }
             obs.append(agent_obs)
 
-        # Gym expects the observations in a numpy or python format
         return tuple(obs)
